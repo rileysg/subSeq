@@ -189,7 +189,7 @@ subsample <-
     if (qvalues) {
       # calculate q-values
       USE.COMMON.PI0 <- FALSE #a switch for experimenting with different pi0 estimation methods
-      if( UES.COMMON.PI0){
+      if( USE.COMMON.PI0){
         max.proportion <- max( ret$proportion)
         ret0 = ret %>% filter(proportion == max.proportion) %>% group_by(method) %>%
           summarize(pi0=qvalue::qvalue(pvalue, lambda = seq(0.05,0.9, 0.05))$pi0) %>% group_by()
