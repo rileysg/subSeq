@@ -123,8 +123,12 @@ subsample <-
     
     # perform one for each method x proportion x bioReplicates x replication
     params = expand.grid(method=names(methods), proportion=proportions, biological.replicate= bioReplicates, replication=1:replications)
-    # don't need replications of full depth (will be identical)
-    params = params %>% filter(!(proportion == 1 & replication > 1))
+    # If all treatments are sampled at highest number of biological replicates,
+    # replications of of full depth might be identical
+    all.max.brep <- all( table( treatments) == max( bioReplicates))
+    if ( !replacement && !ballanced.proportions && all.max.brep){
+      params = params %>% filter(!(proportion == 1 & replication > 1))
+    }
     # apply method to each subsample the specified number of times
     #m.ret = as.data.table(do.call(rbind, lapply(1:nrow(prop.reps),
     perform.ballanced.subsampling <- function(method, proportion, bioReplicates, replication) {
