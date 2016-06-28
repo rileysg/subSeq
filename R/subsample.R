@@ -188,12 +188,19 @@ subsample <-
     ## cleanup
     if (qvalues) {
       # calculate q-values
-      max.proportion <- max( ret$proportion)
-      ret0 = ret %>% filter(proportion == max.proportion) %>% group_by(method) %>%
-        summarize(pi0=qvalue::qvalue(pvalue, lambda = seq(0.05,0.9, 0.05))$pi0) %>% group_by()
-      ret = ret %>% inner_join(ret0, by = c("method"))
-      ret = ret %>% group_by(proportion, method, replication) %>%
-        mutate(qvalue=qvalue.fixedpi0(pvalue, pi0s=unique(pi0))) %>% group_by()
+      USE.COMMON.PI0 <- FALSE #a switch for experimenting with different pi0 estimation methods
+      if( UES.COMMON.PI0){
+        max.proportion <- max( ret$proportion)
+        ret0 = ret %>% filter(proportion == max.proportion) %>% group_by(method) %>%
+          summarize(pi0=qvalue::qvalue(pvalue, lambda = seq(0.05,0.9, 0.05))$pi0) %>% group_by()
+        ret = ret %>% inner_join(ret0, by = c("method"))
+        ret = ret %>% group_by(proportion, method, replication) %>%
+          mutate(qvalue=qvalue.fixedpi0(pvalue, pi0s=unique(pi0))) %>% group_by()
+      }
+      else {
+        ret = ret %>% group_by(proportion, method, replication) %>%
+          mutate(qvalue=qvalue.filtered1(pvalue)) %>% group_by()
+      }
       
     }
     
