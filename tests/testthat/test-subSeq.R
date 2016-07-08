@@ -84,7 +84,13 @@ test.output = function(output, numgenes=NULL) {
 #     test.output(ret.exon, n)
 # })
 
-context("Subsampling")
+context("Subsampling with replacement")
+ss.replace <- subsample( counts, hammer.design$protocol, proportions = proportions, bioReplicates = biological.replicate,
+                               method = c("edgeRDispersions", "voomLimma"), replications = 2,
+                               replacement = TRUE, ballancedproportions = TRUE,
+                               use.common.pi0 = TRUE)
+
+context("Subsampling without replacement")
 
 ss = subsample(counts, treatments= hammer.design$protocol, proportions,
                bioReplicates= biological.replicate, replications= 1,

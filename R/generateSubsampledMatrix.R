@@ -130,11 +130,11 @@ getSeed <- function(ss) {
 #' @export
 #'
 #' @examples
-getIndecesFromCatagoricalTreatment <- function( treatments, rep, seed, replacement= TRUE){
+getIndecesFromCatagoricalTreatment <- function( treatments, bio.replicates, replication, seed, replacement= TRUE){
   if (!missing(seed)) {
     # calculate seed using an md5 hash of the global seed and the
     # subsampling proportions
-    s = readBin(digest(c(seed, treatments, rep), raw=TRUE), "integer")
+    s = readBin(digest(c(seed, treatments, bio.replicates, replication), raw=TRUE), "integer")
     set.seed(s)
   }
   else if (is.null(seed)) {
@@ -147,7 +147,7 @@ getIndecesFromCatagoricalTreatment <- function( treatments, rep, seed, replaceme
   #subsample from each treatment level
   subsamples <- sapply( levels(treatments), function(lev){
     inds <- which( treatments == lev)
-    sample( inds, rep, replace = replacement)
+    sample( inds, bio.replicates, replace = replacement)
   })
   return( as.numeric( subsamples))
 }

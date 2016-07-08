@@ -60,7 +60,8 @@
 #' @export
 subsample <-
   function(counts, treatments, proportions, bioReplicates, method="edgeR", replications=1,
-           replacement= FALSE, ballanced.proportions= FALSE, seed=NULL, qvalues = TRUE, env=parent.frame(), ...) {
+           replacement= FALSE, ballancedproportions= FALSE, seed=NULL,
+           qvalues = TRUE, use.common.pi0= TRUE, env=parent.frame(), ...) {
     # error checking
     if (length(proportions) == 0) {
       stop("No proportions to sample")
@@ -110,7 +111,7 @@ subsample <-
         else if (exists(m, mode="function", envir=env)) {
           handler = get(m, mode="function", envir=env)
         }
-        else if (m %in% c("edgeR", "voomLimma", "DESeq2", "edgeR.glm")) {
+        else if (m %in% c("edgeR", "edgeRDispersions", "voomLimma", "DESeq2", "edgeR.glm")) {
           handler = get(m, mode="function")
         }
         else {
@@ -120,24 +121,24 @@ subsample <-
       })
       names(methods) = method
     }
-    
+
     # perform one for each method x proportion x bioReplicates x replication
     params = expand.grid(method=names(methods), proportion=proportions, biological.replicate= bioReplicates, replication=1:replications)
     # If all treatments are sampled at highest number of biological replicates,
     # replications of of full depth might be identical
     all.max.brep <- all( table( treatments) == max( bioReplicates))
-    if ( !replacement && !ballanced.proportions && all.max.brep){
-      params = params %>% filter(!(proportion == 1 & replication > 1))
+    if ( !replacement && !ballancedproportions && all.max.brep){
+      params = params %>% filter(!(proportion == 1 & biological.replicate == max( biological.replicate) & replication > 1))
     }
     # apply method to each subsample the specified number of times
     #m.ret = as.data.table(do.call(rbind, lapply(1:nrow(prop.reps),
     perform.ballanced.subsampling <- function(method, proportion, bioReplicates, replication) {
       # resample biological replicates
-      inds <- getIndecesFromCatagoricalTreatment( treatments, bioReplicates, seed, replacement)
+      inds <- getIndecesFromCatagoricalTreatment( treatments, bioReplicates, replication, seed, replacement)
       treatment <- treatments[inds]
       #Get proportions for each index in inds
       #Calculating colsums once would help efficientcy, but it needs to be done in correct place to be readable
-      if( ballanced.proportions == TRUE){
+      if( ballancedproportions == TRUE){
         total.counts <- colSums( counts)
         #ind.proportion * total.counts == min( total.counts)
         ind.proportions <- proportion * min( total.counts) / total.counts[ inds]
@@ -181,36 +182,60 @@ subsample <-
       }
       ret
     }
-    
+
     ret = params %>% group_by(method, proportion, biological.replicate, replication) %>%
       do(perform.ballanced.subsampling( .$method, .$proportion, .$biological.replicate, .$replication))
-    
+
     ## cleanup
     if (qvalues) {
       # calculate q-values
-      USE.COMMON.PI0 <- FALSE #a switch for experimenting with different pi0 estimation methods
-      if( USE.COMMON.PI0){
+      if( use.common.pi0){ #a switch for experimenting with different pi0 estimation methods
         max.proportion <- max( ret$proportion)
-        ret0 = ret %>% filter(proportion == max.proportion) %>% group_by(method) %>%
+        max.bio.rep <- max( ret$biological.replicate)
+        # TODO(riley) is it necesary to pick a particular replicate, or
+        #will the estimate of pi0 be more accurate when performed using all of the replicates?
+        rep.id <- ret %>% filter(proportion == max.proportion, biological.replicate == max.bio.rep) %>%
+          group_by() %>%
+          sample_n(1)
+        ret0 = ret %>% filter(proportion == max.proportion,
+                              biological.replicate == max.bio.rep,
+                              replication == rep.id$replication) %>%
+          group_by( method) %>%
           summarize(pi0=qvalue::qvalue(pvalue, lambda = seq(0.05,0.9, 0.05))$pi0) %>% group_by()
         ret = ret %>% inner_join(ret0, by = c("method"))
-        ret = ret %>% group_by(proportion, method, replication) %>%
+        ret = ret %>% group_by(proportion, biological.replicate, method, replication) %>%
           mutate(qvalue=qvalue.fixedpi0(pvalue, pi0s=unique(pi0))) %>% group_by()
       }
       else {
-        ret = ret %>% group_by(proportion, method, replication) %>%
+        ret.pi0 = ret %>% group_by(proportion, biological.replicate, method, replication) %>%
+          summarize(pi0=qvalue::qvalue(pvalue, lambda = seq(0.05,0.9, 0.05))$pi0) %>% group_by()
+        ret = ret %>% inner_join( ret.pi0, by= c("proportion", "biological.replicate", "method", "replication"))
+        ret = ret %>% group_by(proportion, biological.replicate, method, replication) %>%
           mutate(qvalue=qvalue.filtered1(pvalue)) %>% group_by()
       }
-      
+
     }
-    
+
     # turn into a subsamples object
     ret = as.data.table(as.data.frame(ret))
     class(ret) = c("subsamples", class(ret))
     attr(ret, "seed") = seed
-    
+
     return(ret)
   }
+
+# when calculating pi0, it is prudent to filter out cases where p-values are exactly 1.
+# for example, methods of differential expression tend to give p-values of 1 when
+# the read count is 0. This would lead to over-estimating pi0 and thus the resulting
+# q-values, even though those genes have no impact on the rest of the genes.
+qvalue.filtered1 = function(p) {
+  # given a vector of p-values
+  q.without1 = qvalue(p)$qvalue
+  # when p == 1, the FDR is pi0
+  #  q = rep(q.without1$pi0, length(p))
+  # q[p < 1] = q.without1$qvalue
+  q.without1
+}
 
 # when calculating pi0, it is prudent to filter out cases where p-values are exactly 1.
 # for example, methods of differential expression tend to give p-values of 1 when
