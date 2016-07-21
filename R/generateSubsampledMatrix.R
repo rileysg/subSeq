@@ -72,11 +72,11 @@ generateSubsampledMatrix <- function(counts, indeces, proportions, seed, replica
                "the seed from the desired object"))
   }
   # apply random binomial sampling to each cell
-  # keep row names
   rns <- rownames(counts)
   n = nrow(counts)
-  ret <- apply( t(as.array(1:length(indeces))), 2, function(ii){
-    rbinom( n, counts[ , indeces[ii]], proportions[ii])
+  ii.positive <- which( indeces > 0)
+  ret <- apply( t(as.array(ii.positive)), 2, function(ii){
+    rbinom( n, counts[ , ii], proportions[ii])
   })
 
   rownames(ret) <- rns
