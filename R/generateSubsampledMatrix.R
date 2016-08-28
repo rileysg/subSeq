@@ -13,7 +13,8 @@
 #' @param seed A subsampling seed, which can be extracted from a subsamples
 #' or summary.subsamples object. If not given, doesn't set the seed.
 #' @param replication Replicate number: allows performing multiple deterministic 
-#' replications at a given subsampling proportion
+#' replications at a given subsampling proportion. Each replication involves
+#' a seprate call to generateSubsampledMatrix.
 #' 
 #' @details
 #' 
@@ -62,11 +63,16 @@ generateSubsampledMatrix <- function(counts, proportion, seed, replication=1) {
              "the seed from the desired object"))
     }
     # apply random binomial sampling to each cell
-    # keep row names
-    rns <- rownames(counts)
+  
+    dns <- dimnames(counts)
     n = nrow(counts)
-    ret <- apply(counts, 2, function(x) rbinom(n, x, proportion))
-    rownames(ret) <- rns
+    ii.positive <- which( proportion > 0)
+    ret <- apply( t(as.array(ii.positive)), 2, function(ii){
+      rbinom( n, counts[ , ii], proportion[ii])
+    })
+    nonzero.dns <- dns
+    nonzero.dns[[2]] <- nonzero.dns[[2]][ii.positive]
+    dimnames(ret) <- nonzero.dns
     ret
 }
 
