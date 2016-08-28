@@ -68,7 +68,6 @@ function(object, oracle=NULL, FDR.level=.05, average=FALSE,
     # find the oracle for each method
     tab = as.data.frame(object)
     tab = tab %>% filter(count != 0, !is.na(qvalue))
-    tab = tab %>% mutate(method=as.character(method))
 
     if (is.null(oracle)) {
         # use the highest depth in each method
@@ -76,7 +75,7 @@ function(object, oracle=NULL, FDR.level=.05, average=FALSE,
     }
     else {
         # oracle is the same for all methods
-        oracles = data.frame(method=unique(object$method)) %>%
+        oracles = data.frame(method= unique(object$method), stringsAsFactors = FALSE) %>%
             group_by(method) %>% do(oracle)
     }
 
@@ -90,23 +89,32 @@ function(object, oracle=NULL, FDR.level=.05, average=FALSE,
     }
     oracles = oracles %>% group_by(method) %>% mutate(lfdr=lfdr(pvalue))
 
+    all.names <- colnames( tab)
+    design.str <- as.list( grep(x=all.names, pattern="replication|method|prop", value = TRUE))
     # compute adjusted p-values in oracles and data
     if (p.adjust.method == "qvalue") {
         # q-values were already calculated by the subsample function
-        tab$padj = tab$qvalue
-        oracles$padj = oracles$qvalue
+        tab = tab %>% mutate(padj=qvalue)
+        oracles = oracles %>% mutate( padj = qvalue)
     } else {
-        tab = tab %>% group_by(method, proportion, replication) %>% mutate(padj=p.adjust(pvalue, method=p.adjust.method)) %>% group_by()
-        oracles = oracles %>% group_by(method, proportion, replication) %>% mutate(padj=p.adjust(pvalue, method=p.adjust.method)) %>% group_by()
+        #unique subsamplings can be identified based on the 
+        # presence of the following collumns:
+        # 1. collumns discribing experimental design
+        #   method, prop/.*** replication,
+        # 2. collumns discribing results of the subsampling. Don't want to group by these
+        #   coefficient, pvalue, ID, count, depth, qvalue
+        # specify the collumns that define the subsampling
+        tab = tab %>% group_by_(.dots= design.str) %>% mutate(padj=p.adjust(pvalue, method=p.adjust.method)) %>% group_by()
+        oracles = oracles %>% group_by_( .dots= design.str) %>% mutate(padj=p.adjust(pvalue, method=p.adjust.method)) %>% group_by()
     }
-
     # combine with oracle
     sub.oracle = oracles %>% select(method, ID, o.padj=padj,
-                                     o.coefficient=coefficient, o.lfdr=lfdr)
+                                     o.coefficient=coefficient, o.lfdr=lfdr) 
     tab = tab %>% inner_join(sub.oracle, by=c("method", "ID"))
 
     # summary operation
-    ret = tab %>% group_by(depth, proportion, method, replication) %>%
+    group.cols <- as.list( grep("replication|method|prop|depth", all.names,value = TRUE))
+    ret = tab %>% group_by_(.dots= group.cols) %>%
         mutate(valid=(!is.na(coefficient) & !is.na(o.coefficient))) %>%
         summarize(significant=sum(padj < FDR.level),
                   pearson=cor(coefficient, o.coefficient, use="complete.obs"),
@@ -124,9 +132,10 @@ function(object, oracle=NULL, FDR.level=.05, average=FALSE,
 
     if (average) {
         # average each metric within replications
+        group.cols <- c( as.list( grep("prop\\.", all.names,value = TRUE)), "method", "metric")
         ret = ret %>% gather(metric, value, significant:percent) %>%
-            group_by(proportion, method, metric) %>%
-            summarize(value=mean(value)) %>% group_by() %>% spread(metric, value)
+            group_by_(.dots = group.cols) %>%
+            summarize(value = mean(value)) %>% group_by() %>% spread(metric, value)
     }
 
     ret = as.data.table(as.data.frame(ret))
