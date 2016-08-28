@@ -27,17 +27,24 @@ combineSubsamples <-
             stop(paste("Cannot combine subsamples objects that have",
                  "different random seeds: methods are not comparable"))
         }
+        
+        #confirm that all elements have the same class
+        classs <- sapply(lst, function(s) class(s))
+        if (dim(unique(classs, MARGIN=2))[2] != 1){
+          stop(paste("Cannot combine subsamples objects that have",
+                     "different classes"))
+        }
 
         all.colnames = Reduce(union, lapply(lst, colnames))
         with.NA = lapply(lst, function(s) {
             ifnot = lapply(all.colnames, function(i) rep(NA, nrow(s)))
             as.data.frame(mget(all.colnames, envir=as.environment(s),
-                                ifnotfound=ifnot))
+                                ifnotfound=ifnot), stringsAsFactors = FALSE)
         })
 
         ret = as.data.table(do.call(rbind, with.NA))
-
-        class(ret) = c("subsamples", "data.table", "data.frame")
+        # save the class
+        class(ret) = class(lst[[1]])
         # save the seed
         attr(ret, "seed") = attr(lst[[1]], "seed")
         ret
