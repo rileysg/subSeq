@@ -1,0 +1,15 @@
+context("fixed length chunkers")
+
+synthMat <- function(n) matrix( rep(1,times= n^2), nrow=n)
+chunk10 <- fixedLengthChunker(10)
+chunk10(synthMat(4))
+chunk10(synthMat(12))
+chunk10(synthMat(10))
+chunk10(synthMat(1))
+chunk10(synthMat(44))
+chunk3 <- fixedLengthChunker(3)
+chunk3(synthMat(10))
+
+#recursiveChunker(5,0)
+#recursiveChunker(5,6)
+lapply( 1:5, function(x) recursiveChunker(5, x))
