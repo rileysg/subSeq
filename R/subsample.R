@@ -57,9 +57,8 @@
 subsample <-
     function(counts, design, method="edgeR", replications = 1,
              subsampleDesigner, chunker, writer,
-             seed=NULL, getQvalues = NULL, env=parent.frame(), ...) {
+             seed=NULL, getQvalues = NULL, collect.subsamples= FALSE, env=parent.frame(), ...) {
         # a switch that specifies whether subsample should return anything or rely on writer to deal with output
-        COLLECT.SUBSAMPLES <- TRUE
         # error checking------------------------------
         # check that the counts is an unnormalized numeric matrix
         counts = as.matrix(counts)
@@ -210,7 +209,7 @@ subsample <-
           }
             
           out <- NULL
-          if (COLLECT.SUBSAMPLES)
+          if (collect.subsamples)
             out <- bind_rows(chunk.sss)
           out
         })
